@@ -46,7 +46,7 @@ Roxy uses environment variables to configure the proxy behavior and manage Herok
 <ParamField path="KEEP_DYNO_ALIVE" type="boolean" default="false">
   Determines whether Roxy should keep the Heroku free dyno alive by pinging itself periodically.
 
-  Heroku free dynos automatically sleep after 30 minutes of inactivity. When a dyno is asleep, the first request will experience a delay (cold start) as the dyno wakes up.
+  Heroku free dynos automatically sleep after 20 minutes of inactivity. When a dyno is asleep, the first request will experience a delay (cold start) as the dyno wakes up.
 
   **Accepted values:**
   - `true` - Enable keep-alive functionality
@@ -104,6 +104,46 @@ Roxy uses environment variables to configure the proxy behavior and manage Herok
     ```
     
     Or look for it in the Heroku Dashboard under your app's Settings.
+  </Note>
+</ParamField>
+
+## Advanced Nginx configuration
+
+These optional environment variables control Nginx performance and behavior. Most users don't need to modify these.
+
+<ParamField path="NGINX_WORKERS" type="integer" default="4">
+  Number of Nginx worker processes. Generally should match the number of CPU cores.
+
+  ```bash
+  heroku config:set NGINX_WORKERS=2
+  ```
+</ParamField>
+
+<ParamField path="NGINX_WORKER_CONNECTIONS" type="integer" default="1024">
+  Maximum number of simultaneous connections each worker can handle.
+
+  ```bash
+  heroku config:set NGINX_WORKER_CONNECTIONS=512
+  ```
+
+  <Info>
+    Total max connections = `NGINX_WORKERS × NGINX_WORKER_CONNECTIONS` (default: 4096)
+  </Info>
+</ParamField>
+
+<ParamField path="NGINX_CLIENT_BODY_TIMEOUT" type="integer" default="5">
+  Timeout in seconds for reading client request body. Increase for large file uploads.
+
+  ```bash
+  heroku config:set NGINX_CLIENT_BODY_TIMEOUT=30
+  ```
+</ParamField>
+
+<ParamField path="PORT" type="integer">
+  Port number Nginx listens on. This is automatically set by Heroku and should not be modified manually.
+
+  <Note>
+    Heroku automatically assigns and manages the `PORT` variable. You don't need to set this.
   </Note>
 </ParamField>
 
