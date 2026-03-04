@@ -1,0 +1,56 @@
+{
+  "projectType": "infrastructure",
+  "projectName": "Roxy",
+  "projectDescription": "Self-hosted proxy server for Heroku that unblocks websites with one-click deployment.",
+  "theme": "aspen",
+  "primaryColor": "#9373b6",
+  "lightColor": "#c4b3d7",
+  "darkColor": null,
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Deployment",
+        "pages": [
+          "deployment/one-click",
+          "deployment/local-machine",
+          "deployment/environment-variables"
+        ]
+      },
+      {
+        "group": "Configuration",
+        "pages": [
+          "configuration/nginx",
+          "configuration/keep-alive"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/troubleshooting",
+          "guides/supported-sites"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "One-click Heroku deployment",
+    "Nginx-based reverse proxy",
+    "Automatic dyno keep-alive",
+    "Simple domain configuration",
+    "URL rewriting and header forwarding"
+  ],
+  "publicApiSurface": [
+    "DOMAIN environment variable",
+    "KEEP_DYNO_ALIVE environment variable",
+    "HEROKU_APP_URL environment variable",
+    "nginx.conf.erb template",
+    "keep_alive.py service"
+  ]
+}
