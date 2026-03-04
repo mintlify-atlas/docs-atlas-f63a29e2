@@ -1,0 +1,140 @@
+---
+title: Deploy from local machine
+description: Manually deploy Roxy to Heroku using the Heroku CLI and Git
+---
+
+This guide walks you through deploying Roxy to Heroku from your local machine using the Heroku CLI. This method gives you more control over the deployment process.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Git** - For cloning the repository and pushing to Heroku
+- **Heroku CLI** - For creating and managing Heroku applications
+- **Heroku account** - Sign up at [heroku.com](https://heroku.com) if you don't have one
+
+## Deployment steps
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the Roxy repository to your local machine:
+
+    ```bash
+    git clone https://github.com/CoolFool/roxy
+    ```
+  </Step>
+
+  <Step title="Navigate to project directory">
+    ```bash
+    cd Roxy
+    ```
+  </Step>
+
+  <Step title="Log in to Heroku CLI">
+    Use the following command to log in to the Heroku CLI:
+
+    ```bash
+    heroku login
+    ```
+
+    This will open a browser window for authentication.
+  </Step>
+
+  <Step title="Create a Heroku application">
+    Create a new app on Heroku and note the URL generated:
+
+    ```bash
+    heroku create
+    ```
+
+    <Info>
+      The command will output your app's URL, which looks like `https://example-app-123.herokuapp.com`. Save this URL as you'll need it for configuration.
+    </Info>
+  </Step>
+
+  <Step title="Add required buildpacks">
+    Add the buildpacks in the following order:
+
+    ```bash
+    heroku buildpacks:set heroku/python
+    ```
+
+    ```bash
+    heroku buildpacks:add https://github.com/CoolFool/heroku-buildpack-nginx.git
+    ```
+
+    <Note>
+      The order of buildpacks matters. Python must be added first for the keep-alive functionality, followed by the Nginx buildpack.
+    </Note>
+  </Step>
+
+  <Step title="Configure environment variables">
+    Set the required `DOMAIN` environment variable:
+
+    ```bash
+    heroku config:set DOMAIN=example.org
+    ```
+
+    Replace `example.org` with the domain you want to proxy.
+
+    <Warning>
+      Only enter the hostname (e.g., `example.com`), not the full URL with protocol.
+    </Warning>
+  </Step>
+
+  <Step title="Configure keep-alive (optional)">
+    Heroku free dynos sleep after 30 minutes of inactivity. To keep the dyno alive:
+
+    ```bash
+    heroku config:set KEEP_DYNO_ALIVE=true
+    ```
+
+    ```bash
+    heroku config:set HEROKU_APP_URL=https://example-app-123.herokuapp.com
+    ```
+
+    Replace the URL with the one generated in step 4.
+  </Step>
+
+  <Step title="Deploy to Heroku">
+    Push your code to Heroku to trigger the deployment:
+
+    ```bash
+    git push heroku main
+    ```
+
+    This will build and deploy your application. The process may take a few minutes.
+  </Step>
+
+  <Step title="Open the application">
+    Once deployment is complete, visit your Roxy instance:
+
+    ```bash
+    heroku open
+    ```
+
+    This will open your app in the default browser.
+  </Step>
+</Steps>
+
+## Viewing logs
+
+To monitor your application and troubleshoot issues, view the logs in real-time:
+
+```bash
+heroku logs --tail
+```
+
+The logs will show:
+- Nginx configuration and startup
+- Keep-alive status messages
+- Proxy requests and responses
+- Any errors or warnings
+
+<Info>
+  Press `Ctrl+C` to stop tailing the logs.
+</Info>
+
+## Next steps
+
+After deployment, your Roxy instance is ready to use. Visit your app's URL to access the proxied website. If you encounter any issues, check the logs for error messages.

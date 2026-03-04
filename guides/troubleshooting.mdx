@@ -1,0 +1,129 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for Roxy proxy server
+---
+
+This guide covers common issues you might encounter when using Roxy and how to resolve them.
+
+## Common issues
+
+<Accordion title="Dyno sleeping after inactivity">
+  Heroku's free dynos automatically sleep after 20 minutes of inactivity. This means your proxy will become unavailable until the dyno wakes up again.
+
+  **Solution:**
+  
+  Enable the keep-alive feature by setting these environment variables:
+  
+  ```bash
+  heroku config:set KEEP_DYNO_ALIVE=true
+  heroku config:set HEROKU_APP_URL=https://your-app-name.herokuapp.com
+  ```
+  
+  <Note>
+    Make sure to replace `your-app-name.herokuapp.com` with your actual Heroku app URL.
+  </Note>
+</Accordion>
+
+<Accordion title="Website not loading or redirecting incorrectly">
+  If the proxied website isn't loading properly or redirects are broken, this is usually a `DOMAIN` configuration issue.
+
+  **Solution:**
+  
+  Check if the website redirects to a different domain. For example, `google.com` redirects to `www.google.com`.
+  
+  You should set the `DOMAIN` environment variable to the **final redirected domain**:
+  
+  ```bash
+  # Wrong - if google.com redirects to www.google.com
+  heroku config:set DOMAIN=google.com
+  
+  # Correct - use the final domain after redirect
+  heroku config:set DOMAIN=www.google.com
+  ```
+  
+  <Tip>
+    Test the domain in your browser first to see where it redirects, then use that final domain in your configuration.
+  </Tip>
+</Accordion>
+
+<Accordion title="Broken resources on complex websites">
+  Some websites load resources from multiple domains or use complex JavaScript that requires custom rewrite rules.
+
+  **Why this happens:**
+  
+  Roxy is designed for simple websites that operate on a single domain. Complex websites that require multiple domains to function properly will break because each domain needs individually written custom rewrite rules.
+  
+  **Solution:**
+  
+  Unfortunately, there's no quick fix for this issue. Complex sites may not work properly with Roxy unless custom rewrite rules are implemented for each specific site.
+  
+  <Warning>
+    If you're experiencing this issue, check the browser console for failed resource requests. If you see requests to multiple different domains, the site may be too complex for Roxy to handle.
+  </Warning>
+</Accordion>
+
+<Accordion title="Buildpack configuration errors">
+  Roxy requires specific buildpacks to function correctly on Heroku.
+
+  **Solution:**
+  
+  Ensure you have added both required buildpacks in the correct order:
+  
+  ```bash
+  heroku buildpacks:set heroku/python
+  heroku buildpacks:set https://github.com/CoolFool/heroku-buildpack-nginx.git
+  ```
+  
+  You can verify your buildpacks are configured correctly by running:
+  
+  ```bash
+  heroku buildpacks
+  ```
+</Accordion>
+
+<Accordion title="Environment variable configuration errors">
+  Missing or incorrectly configured environment variables will prevent Roxy from working.
+
+  **Required variables:**
+  
+  - `DOMAIN` - The domain name to proxy (e.g., `example.com`)
+  
+  **Optional variables:**
+  
+  - `KEEP_DYNO_ALIVE` - Set to `true` to prevent dyno sleeping (default: `false`)
+  - `HEROKU_APP_URL` - Your full Heroku app URL (required if `KEEP_DYNO_ALIVE` is `true`)
+  
+  **Solution:**
+  
+  Check your current environment variables:
+  
+  ```bash
+  heroku config
+  ```
+  
+  Set any missing variables:
+  
+  ```bash
+  heroku config:set DOMAIN=example.com
+  heroku config:set KEEP_DYNO_ALIVE=true
+  heroku config:set HEROKU_APP_URL=https://your-app.herokuapp.com
+  ```
+  
+  <Info>
+    Remember to use only the domain name for `DOMAIN` (e.g., `example.com`), not a full URL.
+  </Info>
+</Accordion>
+
+## Viewing logs
+
+When troubleshooting issues, logs are your best friend. View real-time logs from your Heroku app:
+
+```bash
+heroku logs --tail
+```
+
+This command will stream logs as they happen, helping you identify errors or issues in real-time.
+
+<Tip>
+  Keep the log stream open while testing your proxy to see exactly what's happening when issues occur.
+</Tip>

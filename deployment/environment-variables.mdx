@@ -1,0 +1,153 @@
+---
+title: Environment variables
+description: Configure Roxy's behavior using environment variables for domain proxying and dyno management
+---
+
+Roxy uses environment variables to configure the proxy behavior and manage Heroku dyno lifecycle. All variables must be set before or during deployment.
+
+## Required variables
+
+<ParamField path="DOMAIN" type="string" required>
+  The domain to proxy through Heroku. Only enter the hostname without protocol or path.
+
+  **Examples:**
+  - `example.com`
+  - `www.example.com`
+  - `nyaa.si`
+  - `1337x.to`
+
+  <Note>
+    If a website redirects to a different domain, you should enter the **redirected domain** as the `DOMAIN` value.
+    
+    For example:
+    - `google.com` redirects to `www.google.com`, so use `www.google.com`
+    - `github.com` might redirect to `www.github.com`, so use the final destination domain
+  </Note>
+
+  <Warning>
+    Do not include the protocol (`https://`) or any paths. Only the hostname is required.
+  </Warning>
+
+  **Setting the variable:**
+
+  Via Heroku CLI:
+  ```bash
+  heroku config:set DOMAIN=example.org
+  ```
+
+  Via Heroku Dashboard:
+  1. Navigate to your app's Settings tab
+  2. Click "Reveal Config Vars"
+  3. Add `DOMAIN` as the key and your domain as the value
+</ParamField>
+
+## Optional variables
+
+<ParamField path="KEEP_DYNO_ALIVE" type="boolean" default="false">
+  Determines whether Roxy should keep the Heroku free dyno alive by pinging itself periodically.
+
+  Heroku free dynos automatically sleep after 30 minutes of inactivity. When a dyno is asleep, the first request will experience a delay (cold start) as the dyno wakes up.
+
+  **Accepted values:**
+  - `true` - Enable keep-alive functionality
+  - `false` - Allow dyno to sleep normally (default)
+
+  **Setting the variable:**
+
+  ```bash
+  heroku config:set KEEP_DYNO_ALIVE=true
+  ```
+
+  <Info>
+    When enabled, the application runs a Python script in the background that periodically pings the app to prevent sleeping:
+    
+    ```bash
+    # From config.sh
+    if [[ "${KEEP_DYNO_ALIVE,,}" == "true" ]];then
+        nohup python keep_alive.py &
+        echo "Heroku dyno will be kept alive"
+    else
+        echo "Heroku FREE dyno will auto-sleep after 20 minutes"
+    fi
+    ```
+  </Info>
+
+  <Warning>
+    If you set `KEEP_DYNO_ALIVE` to `true`, you **must** also set the `HEROKU_APP_URL` variable.
+  </Warning>
+</ParamField>
+
+<ParamField path="HEROKU_APP_URL" type="string">
+  The full URL of your Heroku application. This variable is **required** if `KEEP_DYNO_ALIVE` is set to `true`.
+
+  The keep-alive script uses this URL to ping your application and prevent the dyno from sleeping.
+
+  **Format:**
+  ```
+  https://your-app-name.herokuapp.com
+  ```
+
+  **Examples:**
+  - `https://example-app-123.herokuapp.com`
+  - `https://my-roxy-proxy.herokuapp.com`
+
+  **Setting the variable:**
+
+  ```bash
+  heroku config:set HEROKU_APP_URL=https://example-app-123.herokuapp.com
+  ```
+
+  <Note>
+    You can find your app's URL by running:
+    ```bash
+    heroku info
+    ```
+    
+    Or look for it in the Heroku Dashboard under your app's Settings.
+  </Note>
+</ParamField>
+
+## Configuration matrix
+
+Here's a quick reference for valid environment variable combinations:
+
+| DOMAIN | KEEP_DYNO_ALIVE | HEROKU_APP_URL | Valid? |
+|--------|-----------------|----------------|--------|
+| Set | `false` or unset | Not required | ✅ Yes |
+| Set | `true` | Set | ✅ Yes |
+| Set | `true` | Not set | ❌ No |
+| Not set | Any | Any | ❌ No |
+
+## Viewing current configuration
+
+To view all currently set environment variables for your app:
+
+```bash
+heroku config
+```
+
+To view a specific variable:
+
+```bash
+heroku config:get DOMAIN
+```
+
+## Updating variables
+
+You can update environment variables at any time:
+
+```bash
+heroku config:set DOMAIN=newdomain.com
+```
+
+<Warning>
+  Changing environment variables will cause your dyno to restart automatically.
+</Warning>
+
+## Removing variables
+
+To remove an environment variable:
+
+```bash
+heroku config:unset KEEP_DYNO_ALIVE
+```

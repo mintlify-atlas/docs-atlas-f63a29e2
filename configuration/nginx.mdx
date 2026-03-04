@@ -1,0 +1,197 @@
+---
+title: Nginx configuration
+description: Learn how to configure Nginx as a reverse proxy with URL rewriting and header forwarding
+---
+
+## Overview
+
+Roxy uses Nginx as a reverse proxy to forward requests to a target domain. The Nginx configuration is defined in a template file (`nginx.conf.erb`) that uses ERB (Embedded Ruby) syntax to inject environment variables at runtime.
+
+The configuration handles:
+- Request proxying to the target domain
+- URL and content rewriting to replace the target domain with your proxy domain
+- Custom header forwarding
+- Worker process management
+- Connection timeouts
+
+## Configuration template
+
+The complete Nginx configuration template:
+
+```nginx
+daemon off;
+worker_processes <%= ENV['NGINX_WORKERS'] || 4%>;
+events {
+  use epoll;
+  accept_mutex on;
+  worker_connections <%= ENV['NGINX_WORKER_CONNECTIONS'] || 1024 %>;
+}
+ 
+http {
+    include mime.types;
+    default_type application/octet-stream;
+    proxy_ssl_server_name on;
+    sendfile on;
+    gzip on;
+
+    # Must read the body in 5 seconds.
+    client_body_timeout <%= ENV['NGINX_CLIENT_BODY_TIMEOUT'] || 5 %>;
+
+    server {
+
+        listen <%= ENV["PORT"] %>;
+
+        port_in_redirect off;
+        proxy_redirect https://<%=ENV['DOMAIN']%> http://$host;
+        proxy_redirect http://<%=ENV['DOMAIN']%> http://$host;
+
+        location / {
+            proxy_set_header    Host <%=ENV['DOMAIN']%>;
+            proxy_set_header    Referer 'https://<%=ENV['DOMAIN']%>';
+            proxy_set_header    Accept-Encoding "";
+            proxy_set_header    CF-Connecting-IP "";
+            proxy_pass https://<%=ENV['DOMAIN']%>;
+            sub_filter <%=ENV['DOMAIN']%> $host;
+            sub_filter_once off;
+        }
+    }
+}
+```
+
+## Worker processes and connections
+
+### Worker processes
+
+Nginx uses multiple worker processes to handle requests efficiently:
+
+```nginx
+worker_processes <%= ENV['NGINX_WORKERS'] || 4%>;
+```
+
+<Info>
+The default is **4 worker processes** if `NGINX_WORKERS` is not set. Adjust this based on your server's CPU cores.
+</Info>
+
+### Worker connections
+
+Each worker process can handle multiple simultaneous connections:
+
+```nginx
+events {
+  use epoll;
+  accept_mutex on;
+  worker_connections <%= ENV['NGINX_WORKER_CONNECTIONS'] || 1024 %>;
+}
+```
+
+- **epoll**: Linux-specific event notification mechanism for better performance
+- **accept_mutex**: Prevents thundering herd problem when accepting connections
+- **worker_connections**: Default is **1024 connections** per worker
+
+<Note>
+Total max connections = `NGINX_WORKERS × NGINX_WORKER_CONNECTIONS` (default: 4096)
+</Note>
+
+## Proxy configuration
+
+### Proxy pass
+
+The `proxy_pass` directive forwards all requests to the target domain:
+
+```nginx
+proxy_pass https://<%=ENV['DOMAIN']%>;
+```
+
+This sends the incoming request to the domain specified in the `DOMAIN` environment variable over HTTPS.
+
+### Proxy headers
+
+Custom headers are set to ensure the target server receives proper request context:
+
+```nginx
+proxy_set_header    Host <%=ENV['DOMAIN']%>;
+proxy_set_header    Referer 'https://<%=ENV['DOMAIN']%>';
+proxy_set_header    Accept-Encoding "";
+proxy_set_header    CF-Connecting-IP "";
+```
+
+<Accordion title="Header explanations">
+- **Host**: Sets the Host header to the target domain (required for virtual hosting)
+- **Referer**: Sets the Referer to the target domain to appear as if requests originate there
+- **Accept-Encoding**: Cleared to prevent compressed responses (needed for content rewriting)
+- **CF-Connecting-IP**: Cleared to avoid exposing Cloudflare IP information
+</Accordion>
+
+<Warning>
+The `Accept-Encoding` header is cleared to disable compression. This is necessary for `sub_filter` to work properly, but may increase bandwidth usage.
+</Warning>
+
+## URL and content rewriting
+
+### Proxy redirect
+
+Rewrites Location headers in redirect responses:
+
+```nginx
+proxy_redirect https://<%=ENV['DOMAIN']%> http://$host;
+proxy_redirect http://<%=ENV['DOMAIN']%> http://$host;
+```
+
+This replaces the target domain with your proxy's host in HTTP redirect responses (301, 302, etc.).
+
+### Content filtering
+
+Rewrites content in the response body:
+
+```nginx
+sub_filter <%=ENV['DOMAIN']%> $host;
+sub_filter_once off;
+```
+
+- **sub_filter**: Replaces all occurrences of the target domain with your proxy domain in HTML/text responses
+- **sub_filter_once off**: Applies the filter to all occurrences, not just the first one
+
+<Info>
+This ensures that links, images, and other resources in the proxied content point to your proxy domain instead of the original domain.
+</Info>
+
+## Environment variables
+
+The Nginx configuration uses these environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | *Required* | Port number Nginx listens on (usually set by Heroku) |
+| `DOMAIN` | *Required* | Target domain to proxy (e.g., `example.com`) |
+| `NGINX_WORKERS` | `4` | Number of worker processes |
+| `NGINX_WORKER_CONNECTIONS` | `1024` | Max connections per worker |
+| `NGINX_CLIENT_BODY_TIMEOUT` | `5` | Timeout in seconds for reading client request body |
+
+<Warning>
+`PORT` and `DOMAIN` are required and must be set, or Nginx will fail to start.
+</Warning>
+
+## Timeouts
+
+### Client body timeout
+
+```nginx
+client_body_timeout <%= ENV['NGINX_CLIENT_BODY_TIMEOUT'] || 5 %>;
+```
+
+Nginx will close the connection if a client takes more than 5 seconds (default) to send the request body. This prevents slow clients from tying up connections.
+
+<Info>
+Increase `NGINX_CLIENT_BODY_TIMEOUT` if you expect clients to upload large files or have slow connections.
+</Info>
+
+## Template processing
+
+The `nginx.conf.erb` file is an ERB template that gets processed when the application starts:
+
+1. Environment variables are read from the system
+2. ERB expressions (`<%= ... %>`) are evaluated and replaced with actual values
+3. The final `nginx.conf` file is generated
+4. Nginx starts using the generated configuration
+
+This allows for dynamic configuration based on the deployment environment without modifying the template file.

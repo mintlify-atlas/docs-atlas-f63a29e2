@@ -1,0 +1,178 @@
+---
+title: Keep-alive service
+description: Prevent your Heroku free dyno from sleeping with the automated keep-alive service
+---
+
+## Overview
+
+The keep-alive service is a Python-based background process that prevents Heroku free dynos from automatically sleeping after 20 minutes of inactivity. It works by sending periodic HTTP requests to your application to simulate activity.
+
+<Info>
+This service is optional and only useful for Heroku free tier deployments. Hobby and Professional dynos don't have the auto-sleep behavior.
+</Info>
+
+## How it works
+
+The keep-alive service uses APScheduler to send HTTP requests to your application every 5 minutes (300 seconds). This keeps the dyno active and prevents Heroku from putting it to sleep.
+
+### Request schedule
+
+- **Interval**: 300 seconds (5 minutes)
+- **Method**: HTTP GET request
+- **Target**: Your Heroku app URL (from `HEROKU_APP_URL` environment variable)
+- **Follows redirects**: Yes
+- **Custom User-Agent**: Mimics Firefox browser
+
+<Note>
+Heroku free dynos sleep after **20 minutes** of inactivity. By pinging every **5 minutes**, the service ensures the dyno stays awake.
+</Note>
+
+## Source code
+
+The complete keep-alive service implementation:
+
+```python
+import os
+import requests
+from apscheduler.schedulers.blocking import BlockingScheduler
+
+HEROKU_APP_URL = os.environ["HEROKU_APP_URL"]
+
+
+def keep_alive():
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 11.0; WOW64; rv:99.0) Gecko/20010101 Firefox/99.0"}
+    request = requests.get(HEROKU_APP_URL, allow_redirects=True, headers=headers).status_code
+    print("(Keeping Dyno Alive) HTTP status codes {} while requesting {}".format(request, HEROKU_APP_URL))
+
+
+if __name__ == '__main__':
+    keep_alive()
+    scheduler = BlockingScheduler()
+    scheduler.add_job(keep_alive, 'interval', seconds=300)
+    try:
+        print("Starting Keep Alive Service...")
+        scheduler.start()
+    except (KeyboardInterrupt, SystemExit):
+        pass
+```
+
+## APScheduler usage
+
+The service uses the **BlockingScheduler** from APScheduler:
+
+```python
+scheduler = BlockingScheduler()
+scheduler.add_job(keep_alive, 'interval', seconds=300)
+scheduler.start()
+```
+
+<Accordion title="Why BlockingScheduler?">
+`BlockingScheduler` is used because the keep-alive service runs as a standalone background process. It blocks execution and keeps running indefinitely, executing the `keep_alive()` function every 300 seconds.
+
+Other scheduler types (like `BackgroundScheduler`) are for when you need to run scheduled tasks alongside other code in the same process.
+</Accordion>
+
+### Job configuration
+
+- **Function**: `keep_alive()`
+- **Trigger**: `'interval'`
+- **Interval**: `300` seconds (5 minutes)
+
+## HTTP request details
+
+Each keep-alive request:
+
+```python
+headers = {"User-Agent": "Mozilla/5.0 (Windows NT 11.0; WOW64; rv:99.0) Gecko/20010101 Firefox/99.0"}
+request = requests.get(HEROKU_APP_URL, allow_redirects=True, headers=headers).status_code
+```
+
+- Uses a **Firefox User-Agent** to mimic a real browser
+- **Follows redirects** automatically (`allow_redirects=True`)
+- Only checks the **status code** (doesn't process response body)
+- Logs the status code and URL to stdout
+
+<Info>
+The custom User-Agent helps the request appear as legitimate browser traffic rather than automated pings.
+</Info>
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `HEROKU_APP_URL` | Yes | Full URL of your Heroku app (e.g., `https://your-app.herokuapp.com`) |
+| `KEEP_DYNO_ALIVE` | No | Set to `"true"` to enable the service (case-insensitive) |
+
+<Warning>
+The `HEROKU_APP_URL` environment variable must be set or the service will fail to start with a KeyError.
+</Warning>
+
+## Starting the service
+
+The keep-alive service is started conditionally from `config.sh`:
+
+```bash
+if [[ "${KEEP_DYNO_ALIVE,,}" == "true" ]];then
+    nohup python keep_alive.py &
+    echo "Heroku dyno will be kept alive"
+else
+    echo "Heroku FREE dyno will auto-sleep after 20 minutes"
+fi
+```
+
+- **Conditional**: Only runs if `KEEP_DYNO_ALIVE` is set to `"true"` (case-insensitive)
+- **Background process**: Uses `nohup` and `&` to run in the background
+- **Non-blocking**: Doesn't prevent Nginx from starting
+
+## Dependencies
+
+The service requires these Python packages (from `requirements.txt`):
+
+```
+APScheduler==3.9.1
+requests==2.27.1
+```
+
+- **APScheduler**: Handles periodic task scheduling
+- **requests**: Makes HTTP requests to your app
+
+## When to enable
+
+### Enable the keep-alive service when:
+
+- You're using Heroku **free tier** dynos
+- Your application needs to be **always available** (24/7)
+- You want to avoid cold start delays when users visit your site
+- You don't mind the additional dyno hours consumption
+
+### Disable the keep-alive service when:
+
+- You're using Heroku **Hobby or Professional** dynos (they don't auto-sleep)
+- You want to conserve free dyno hours (Heroku free tier has limited monthly hours)
+- Your application doesn't need to be always available
+- You're okay with occasional cold starts
+
+<Warning>
+**Free tier limits**: Heroku free tier provides limited dyno hours per month. Running the keep-alive service will consume these hours faster. Monitor your dyno hour usage in the Heroku dashboard.
+</Warning>
+
+## Logs
+
+The service logs each keep-alive request to stdout:
+
+```
+Starting Keep Alive Service...
+(Keeping Dyno Alive) HTTP status codes 200 while requesting https://your-app.herokuapp.com
+```
+
+You can view these logs using:
+
+```bash
+heroku logs --tail
+```
+
+Look for log entries with "(Keeping Dyno Alive)" to confirm the service is running correctly.
+
+<Info>
+A status code of **200** indicates successful requests. Other codes (301, 302, 404, etc.) may indicate configuration issues.
+</Info>

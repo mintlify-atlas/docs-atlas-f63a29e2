@@ -1,0 +1,75 @@
+---
+title: One-click deployment
+description: Deploy Roxy to Heroku with a single click using the Deploy to Heroku button
+---
+
+The one-click deployment option provides the fastest way to get Roxy up and running on Heroku. This method automatically configures all necessary buildpacks and prompts you for required environment variables.
+
+## How it works
+
+When you click the Deploy to Heroku button, Heroku reads the `app.json` configuration file from the Roxy repository and automatically:
+
+- Creates a new Heroku application
+- Configures the required buildpacks
+- Prompts for environment variables
+- Deploys the application
+
+## Deployment steps
+
+<Steps>
+  <Step title="Click the Deploy button">
+    Navigate to the Roxy repository and click the Deploy to Heroku button:
+    
+    [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/coolfool/roxy)
+  </Step>
+
+  <Step title="Configure environment variables">
+    You'll be prompted to enter the required environment variables:
+
+    - **DOMAIN** (required) - The domain to proxy through Heroku (only hostname, e.g., `example.com`)
+    - **KEEP_DYNO_ALIVE** (optional, default: `false`) - Whether to keep the Heroku free dyno alive
+    - **HEROKU_APP_URL** (conditional) - Required if `KEEP_DYNO_ALIVE` is set to `true`
+
+    <Note>
+      If a website redirects to a different domain, enter the redirected domain. For example, `google.com` redirects to `www.google.com`, so you should enter `www.google.com` as the `DOMAIN`.
+    </Note>
+  </Step>
+
+  <Step title="Deploy the application">
+    Click the "Deploy app" button and wait for the deployment to complete.
+  </Step>
+
+  <Step title="Verify the deployment">
+    Once deployment is complete, click "View app" to visit your Roxy instance. You should see the proxied website.
+  </Step>
+</Steps>
+
+## Buildpacks configured automatically
+
+The one-click deployment automatically configures the following buildpacks in order:
+
+```json
+"buildpacks": [
+  {
+    "url": "heroku/python"
+  },
+  {
+    "url": "https://github.com/CoolFool/heroku-buildpack-nginx.git"
+  }
+]
+```
+
+1. **heroku/python** - Enables Python runtime for the keep-alive functionality
+2. **heroku-buildpack-nginx** - Configures Nginx as a reverse proxy
+
+## Post-deployment
+
+After successful deployment:
+
+- Your Roxy instance will be available at `https://your-app-name.herokuapp.com`
+- The application will proxy requests to the domain you specified
+- If `KEEP_DYNO_ALIVE` is enabled, the dyno will ping itself to prevent sleeping
+
+<Warning>
+  Heroku free dynos automatically sleep after 30 minutes of inactivity. Enable `KEEP_DYNO_ALIVE` to prevent this behavior.
+</Warning>
